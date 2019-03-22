@@ -12,14 +12,14 @@ signal = A*exp(1i*(omega_0*[1:N]*T + phase));
 noise = normrnd(0, noise_var, 1, N) + 1i*normrnd(0, noise_var, 1, N);
 x = signal + noise;
 
-x_fft = fft(x);
+x_fft = fft(x, 2^15);
 
 
-[peak, pos] = max(abs(x_fft(2:end)));
-freqs = [0:Fs/(N-1):Fs];
+[peak, pos] = max(abs(x_fft));
+freqs = [0:Fs/(length(x_fft)-1):Fs];
 plot(freqs, abs(x_fft));
 omega_0_est = freqs(pos);
-fprintf('Estimated omega_0: %f', omega_0_est);
+fprintf('Estimated omega_0: %f\nCRLB: %f', omega_0_est, var_freq(noise_var, A, T, N));
 
 function snr = SNR(A, sigma)
     snr = A^2/(2*sigma^2);

@@ -8,14 +8,15 @@ Fs = 10^6;
 T = 1/Fs;
 
 N = 513;
-M = 2^20;
-SNR_db = 10;
+M = 2^10;
+SNR_db = -10;
 noise_std = sqrt(A^2/10^(SNR_db/10));
 
 steps = 10^5;
 omega_0_est = zeros(steps, 1);
 angle_est = zeros(steps,1);
 
+func = @(w, p) sum(abs(x - A*exp(1i*(w*[1:N]*T + p))));
 signal = A*exp(1i*(omega_0*[1:N]*T + ph));
 for j=1:steps
     noise = normrnd(0, noise_std, 1, N) + 1i*normrnd(0, noise_std, 1, N);
@@ -24,9 +25,20 @@ for j=1:steps
     x_fft = fft(x, M)/M;
 
     [peak, pos] = max(x_fft);
+    omega_est = 2*pi*(pos)/(M*T);
+    % TODO: The signs of these two components must be corrected
+    ang_est = angle(exp(1i*omega_0_est(j)*best_n0(N)*T)*peak');
     
-    omega_0_est(j) = 2*pi*(pos)/(M*T);
-    angle_est(j) = angle(exp(1i*omega_0_est(j)*best_n0(N)*T)*-peak);
+    % We might want to do the estimate, THEN do the fminsearch? It takes a
+    % *long* time
+    [vals, ~, exitflag, output] = fminsearch(@(input) func(input(1), input(2)), [omega_est, ang_est]);
+    omega_0_est(j) = vals(1);
+    angle_est(j) = vals(2);
+    %omega_0_est(j) = 2*pi*(pos)/(M*T);
+    %angle_est(j) = angle(exp(1i*omega_0_est(j)*best_n0(N)*T)*-peak);
+    
+    
+    
     if mod(j, steps/100) == 0
         fprintf('%i%%\n',100* j/steps)
     end
@@ -36,8 +48,8 @@ clc;
 err = mean(omega_0 - omega_0_est);
 
 omega_0_var = var(omega_0_est - omega_0);
-fprintf('Estimated angle: %f deg\nError variance: %f | CRLB: %f\n\n', rad2deg(mean(angle_est)), var(angle_est - ph), best_phase(noise_std, A, N))
-fprintf('Estimated omega_0: %f\nError variance: %f | CRLB: %f\n', mean(omega_0_est), omega_0_var, best_freq(noise_std, A, T, N));
+fprintf('Estimated angle: %f pi (%.3f%% off)\nError variance: %f | CRLB: %f\n\n', mean(angle_est)/pi,100*(mean(angle_est) - ph)/ph, var(angle_est - ph), best_phase(noise_std, A, N))
+fprintf('Estimated omega_0: %.0f (%.3f%% off)\nError variance: %f | CRLB: %f\n', mean(omega_0_est), 100*(mean(omega_0_est) - omega_0)/omega_0, omega_0_var, best_freq(noise_std, A, T, N));
 
 
 function snr = SNR(A, sigma)
